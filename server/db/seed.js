@@ -50,8 +50,8 @@ db.serialize(() => {
     INSERT INTO entities (name, type, description, first_mentioned_date, last_mentioned_date, mentions_count)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
-  insertEntity.run("OpenAI", "ORG", "An AI research and deployment company", 1678752000, 1700000000, 5);
-  insertEntity.run("Sam Altman", "PERSON", "CEO of OpenAI", 1678752000, 1700000000, 3);
+  insertEntity.run("OpenAI", "ORG", "An AI research and deployment company", 1678752000, 1700000000, 1);
+  insertEntity.run("Sam Altman", "PERSON", "CEO of OpenAI", 1678752000, 1700000000, 1);
   insertEntity.finalize();
 
   // Seed articles

@@ -129,7 +129,7 @@ async function runNER(text) {
 
   const result = await response.json();
   const mergedResult = concatenateEntities(result);
-  console.log("NER Result:", mergedResult);
+  //console.log("NER Result:", mergedResult);
   return new Set(mergedResult);
 
 }

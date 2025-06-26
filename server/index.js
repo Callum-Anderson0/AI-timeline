@@ -15,7 +15,7 @@ app.use(express.json())
 
 // Sample endpoint
 app.get('/events', (req, res) => {
-  db.all('SELECT * FROM events', [], (err, rows) => {
+  db.all('SELECT * FROM articles', [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message })
     }
