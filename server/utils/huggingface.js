@@ -1,4 +1,4 @@
-const API_TOKEN = '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';  // store token in .env file
+const API_TOKEN = process.env.HF_API_KEY;  // store token in .env file
 
 async function runNER(text) {
   const response = await fetch('https://api-inference.huggingface.co/models/dslim/bert-base-NER', {
