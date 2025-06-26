@@ -82,6 +82,7 @@ async function fetchNewsFromGNews(query, lang = 'en', country = 'us', max = 10) 
     } catch (error) {
         console.error("Failed to fetch or store news:", error);
     }
+    return articles;
 }
 
 module.exports = fetchNewsFromGNews;

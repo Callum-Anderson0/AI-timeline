@@ -26,7 +26,8 @@ app.get('/events', (req, res) => {
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
-  //runNER(text);
+  runNER(text);
   //fetchAndStoreNews();  // fetch news and store in DB on startup
-  fetchNewsFromGNews("technology startups");
+  //const articles = fetchNewsFromGNews("technology startups");
+
 })
