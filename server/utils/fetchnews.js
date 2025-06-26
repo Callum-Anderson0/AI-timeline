@@ -4,10 +4,11 @@ const API_KEY = process.env.NEWS_API_KEY;
 const NEWS_API_URL = `https://newsapi.org/v2/everything?q=startups&sortBy=publishedAt&pageSize=10&apiKey=${API_KEY}`;
 
 
+
 async function fetchAndStoreNews() {
 
   try {
-    const response = await fetch(NEWS_API_URL);
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`News API error: ${response.status}`);
 
     const data = await response.json();

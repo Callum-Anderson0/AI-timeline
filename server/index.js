@@ -5,6 +5,7 @@ const express = require('express')
 const cors = require('cors')
 const db = require('./db/db')
 const fetchAndStoreNews = require('./utils/fetchnews.js');
+const fetchNewsFromGNews = require('./utils/Fetchgnews.js');
 const { runNER } = require('./utils/huggingface.js');
 
 
@@ -25,7 +26,7 @@ app.get('/events', (req, res) => {
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
-  console.log(process.env.HF_API_KEY, "huggingface key");
-  runNER(text);
-  fetchAndStoreNews();  // fetch news and store in DB on startup
+  //runNER(text);
+  //fetchAndStoreNews();  // fetch news and store in DB on startup
+  fetchNewsFromGNews("technology startups");
 })
