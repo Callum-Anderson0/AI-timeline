@@ -8,29 +8,25 @@ const API_TOKEN = process.env.HF_API_KEY;  // store token in .env file
  * @returns {Array<Object>} An array of processed entities with concatenated names.
  */
 
-function cleanAndDeduplicateEntities(entityNames) {
-    if (!entityNames || !Array.isArray(entityNames)) {
-        console.warn("Input is not a valid array.");
+function cleanAndDeduplicateEntities(entityNameTypeObjects) {
+    if (!entityNameTypeObjects || !Array.isArray(entityNameTypeObjects)) {
         return [];
     }
 
-    // Step 1: Trim whitespace from each entity name
-    const trimmedNames = entityNames.map(name => {
-        if (typeof name === 'string') {
-            return name.trim();
+    const uniqueEntitiesMap = new Map(); // Key: trimmed name (string), Value: { name: string, type: string }
+
+    for (const entity of entityNameTypeObjects) {
+        if (!entity || typeof entity.name !== 'string' || typeof entity.type !== 'string') {
+            console.warn("Skipping malformed entity object in deduplication:", entity);
+            continue;
         }
-        // Handle non-string entries gracefully, e.g., convert to string or filter out
-        console.warn(`Skipping non-string entity: ${name}`);
-        return String(name).trim(); // Convert to string and then trim
-    });
-
-    // Step 2: Use a Set to automatically filter out duplicates
-    const uniqueNamesSet = new Set(trimmedNames);
-
-    // Step 3: Convert the Set back to an array
-    const deduplicatedNames = Array.from(uniqueNamesSet);
-
-    return deduplicatedNames;
+        const trimmedName = entity.name.trim();
+        // Use the first type encountered for a given name as the canonical type
+        if (!uniqueEntitiesMap.has(trimmedName)) {
+            uniqueEntitiesMap.set(trimmedName, { name: trimmedName, type: entity.type });
+        }
+    }
+    return Array.from(uniqueEntitiesMap.values()); // Return array of { name, type } objects
 }
 
 
@@ -39,8 +35,10 @@ function concatenateEntities(nerResults) {
         return [];
     }
 
-    const concatenatedNames = [];
-    let currentEntityInfo = null; // Stores { name: string, lastCharIndex: number, semanticType: string }
+    // Change to hold objects { name: string, type: string }
+    const concatenatedEntityObjects = [];
+    // currentEntityInfo now explicitly stores 'name', 'lastCharIndex', and 'type'
+    let currentEntityInfo = null; // Stores { name: string, lastCharIndex: number, type: string }
 
     for (const entity of nerResults) {
         // --- Defensive checks for required properties and types ---
@@ -50,14 +48,14 @@ function concatenateEntities(nerResults) {
         }
         // --- End Defensive checks ---
 
-        // 1. Clean the word: remove "##" prefix for subwords
-        const cleanedWord = entity.word.startsWith("##") ? entity.word.substring(2) : entity.word;
+        // 1. Clean the word: remove "##" prefix for subwords AND trim whitespace
+        const cleanedWord = (entity.word.startsWith("##") ? entity.word.substring(2) : entity.word).trim();
 
         // 2. Determine the semantic type (e.g., 'PER', 'ORG').
-        const entitySemanticType = entity.entity_group || entity.type;
+        // This is the type for the current *token*, which will become the type for the concatenated entity
+        const currentTokenType = entity.entity_group || entity.type;
 
         let shouldAppend = false;
-        // Declare these variables here so they are accessible throughout the loop iteration
         let isDirectlyContiguous = false;
         let isSpaceSeparated = false;
 
@@ -67,36 +65,51 @@ function concatenateEntities(nerResults) {
             isSpaceSeparated = entity.start === currentEntityInfo.lastCharIndex + 1;
 
             // Decision Logic for Appending:
+            // Rule A: Subword token (starts with ##) AND is directly contiguous -> ALWAYS append.
             if (entity.word.startsWith("##") && isDirectlyContiguous) {
                 shouldAppend = true;
             }
-            else if (currentEntityInfo.semanticType === entitySemanticType &&
+            // Rule B: Not a subword, AND type matches current entity's type, AND it's contiguous.
+            // We compare against the type stored in currentEntityInfo (from its first token).
+            else if (currentEntityInfo.type === currentTokenType &&
                      (isDirectlyContiguous || isSpaceSeparated)) {
                 shouldAppend = true;
             }
         }
 
         if (shouldAppend) {
-            // isSpaceSeparated is now correctly in scope here
             currentEntityInfo.name += (isSpaceSeparated ? " " : "") + cleanedWord;
             currentEntityInfo.lastCharIndex = entity.end;
+            // The 'type' of currentEntityInfo remains the type set by its *first* token.
         } else {
             if (currentEntityInfo) {
-                concatenatedNames.push(currentEntityInfo.name);
+                // Push the complete entity object (name and type)
+                concatenatedEntityObjects.push({
+                    name: currentEntityInfo.name,
+                    type: currentEntityInfo.type
+                });
             }
+            // Start a new entity
             currentEntityInfo = {
                 name: cleanedWord,
                 lastCharIndex: entity.end,
-                semanticType: entitySemanticType,
+                type: currentTokenType, // Store the type for this new entity
             };
         }
     }
 
+    // After the loop, push the very last entity if one was being built
     if (currentEntityInfo) {
-        concatenatedNames.push(currentEntityInfo.name);
+        concatenatedEntityObjects.push({
+            name: currentEntityInfo.name,
+            type: currentEntityInfo.type
+        });
     }
-    const deduplicatedNames = cleanAndDeduplicateEntities(concatenatedNames);
-    return deduplicatedNames;
+
+    // Finally, clean and deduplicate the list of entity objects
+    const deduplicatedEntities = cleanAndDeduplicateEntities(concatenatedEntityObjects);
+    console.log(deduplicatedEntities)
+    return deduplicatedEntities; // Returns an array of { name, type } objects
 }
 
 async function runNER(text) {
