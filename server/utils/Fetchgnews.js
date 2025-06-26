@@ -2,6 +2,7 @@ const path = require('path');
 const db = require('../db/db'); // assumes db.js exports a connected SQLite instance
 
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') }); // Adjust path as needed for your project structure
+const { runNER } = require('./huggingface');
 
 const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
 
@@ -13,6 +14,57 @@ const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
  * @param {number} max The maximum number of articles to return (max 10 for free plan, higher for paid).
  * @returns {Promise<Array|null>} An array of article objects, or null if an error occurs.
  */
+
+async function handleArticleSQL(articles) {
+    const insertStmt = db.prepare(`
+        INSERT OR IGNORE INTO articles (title, url, content, published_at, source_name, image_url, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const article of articles) {
+        // Await the async runNER call
+        const entities = await runNER(article.title + ' ' + (article.content || ''));
+        handleEntitiesSQL(entities); // if this is async, await it too
+
+        const title = article.title || 'No title';
+        const url = article.url || 'No URL';
+        const content = article.content || null;
+        const published_at = article.publishedAt
+            ? Math.floor(new Date(article.publishedAt).getTime() / 1000)
+            : Math.floor(Date.now() / 1000);
+        const source_name = article.source?.name || 'Unknown';
+        const image_url = article.image || null;
+        const description = article.description || null;
+
+        insertStmt.run(title, url, content, published_at, source_name, image_url, description);
+    }
+
+    insertStmt.finalize();
+}
+
+function handleEntitiesSQL(entities){
+    const insertEntityStmt = db.prepare(`
+        INSERT OR IGNORE INTO entities (
+            name,
+            type,
+            description,
+            first_mentioned_date,
+            last_mentioned_date,
+            mentions_count
+        ) VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const entity of entities) {
+            const name = entity.name;
+            const type = entity.type;
+            const desc = null; // No description available in your data
+            const firstMentioned = 0;
+            const lastMentioned = 0;
+            const mentionsCount = 1;
+
+            insertEntityStmt.run(name, type, desc, firstMentioned, lastMentioned, mentionsCount);
+        }
+}
 
 async function fetchNewsFromGNews(query, lang = 'en', country = 'us', max = 10) {
     if (!GNEWS_API_KEY) {
@@ -49,40 +101,11 @@ async function fetchNewsFromGNews(query, lang = 'en', country = 'us', max = 10) 
         const data = await response.json(); // Parse the JSON response
         console.log("GNews API raw response (first 2 articles for brevity):", data.articles ? data.articles.slice(0,2) : data);
         const articles = data.articles || []; // Extract articles, default to empty array if not present
-        
-        const insertStmt = db.prepare(`
-            INSERT OR IGNORE INTO articles (title, url, content, published_at, source_name, image_url, description)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            `);
+        handleArticleSQL(articles); // Store articles in the database
 
-        db.serialize(() => {
-        for (const article of articles) {
-            const title = article.title || 'No title';
-            const url = article.url || 'No URL';
-            const content = article.content || null;
-            const published_at = article.publishedAt
-            ? Math.floor(new Date(article.publishedAt).getTime() / 1000)
-            : Math.floor(Date.now() / 1000); // fallback to current timestamp
-            const source_name = article.source?.name || 'Unknown';
-            const image_url = article.image || null;
-            const description = article.description || null;
-
-            insertStmt.run(
-            title,
-            url,
-            content,
-            published_at,
-            source_name,
-            image_url,
-            description
-            );
-        }
-        insertStmt.finalize();
-        });
+       
     } catch (error) {
         console.error("Failed to fetch or store news:", error);
     }
-    return articles;
 }
-
 module.exports = fetchNewsFromGNews;
